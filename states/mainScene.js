@@ -195,60 +195,65 @@ const mainScene = {
     this.aimLineRight.visible = false;
     this.aimLineRightGR.destroy();
 
-    // INPUTS
-    this.input.onDown.add(this.playerAim);
-    this.input.onUp.add(this.playerShot);
-    this.input.addMoveCallback(this.adjustAiming, this);
+    // INPUTS if it's player turn
+      this.input.onDown.add(this.playerAim);
+      this.input.onUp.add(this.playerShot);
+      this.input.addMoveCallback(this.adjustAiming, this);
   },
   // ------------------------------------------------- UPDATE --------------------------------------------------------
   update() {
 
-    if (playerShooting){
-        game.physics.arcade.collide(playerWeapon, mainScene.ground, () => {
-            playerWeapon.body.velocity.set(0);
-            playerWeapon.body.immovable = true;
-            playerWeapon.body.allowGravity = false;
-            game.tweens.remove(game.playerWeaponTween);
-            enemy.setAnimationByName(0, 'fall', false); // NOT E scare animation
-            game.camera.follow(enemy, Phaser.Camera.FOLLOW_LOCKON, 0.05, 0.05);
+    game.physics.arcade.collide(playerWeapon, mainScene.ground, () => {
+      if (readyToCollide){
+        playerWeapon.body.velocity.set(0);
+        playerWeapon.body.immovable = true;
+        playerWeapon.body.allowGravity = false;
+        game.tweens.remove(game.playerWeaponTween);
+        enemy.setAnimationByName(0, 'fall', false); // NOT E scare animation
+        game.camera.follow(enemy, Phaser.Camera.FOLLOW_LOCKON, 0.05, 0.05);
 
-            if (enemyHealth <= 0) {
-                this.playerWin();
-            } else {
-                setTimeout(() => {
-                    enemy.onEvent.add((i, e) => {
-                        this.enemyShot(i, e);
-                    });
-                }, 1000);
-            }
+        if (enemyHealth <= 0) {
+          playerWeapon.kill();
+          this.playerWin();
+        } else {
+          setTimeout(() => {
+            enemy.onEvent.add((i, e) => {
+              playerWeapon.kill();
+              enemyTurn = true;
+              this.enemyShot(i, e);
+            });
+          }, 1000);
+        }
 
-        });
+        readyToCollide = false;
+      }
+    });
 
-        game.physics.arcade.collide(playerWeapon, mainScene.enemyAsTarget, () => {
-            enemyHealth -= 50;
-            mainScene.healthEnemy_InfoBar.width = mainScene.healthEnemy_InfoBar.width / 100 * enemyHealth;
-            mainScene.healthEnemy_InfoBar.updateCrop();
-            playerWeapon.kill();
-            game.camera.follow(enemy, Phaser.Camera.FOLLOW_LOCKON, 0.05, 0.05);
+    game.physics.arcade.collide(playerWeapon, mainScene.enemyAsTarget, () => {
+      enemyHealth -= 50;
+      mainScene.healthEnemy_InfoBar.width = mainScene.healthEnemy_InfoBar.width / 100 * enemyHealth;
+      mainScene.healthEnemy_InfoBar.updateCrop();
+      playerWeapon.kill();
+      game.camera.follow(enemy, Phaser.Camera.FOLLOW_LOCKON, 0.05, 0.05);
 
-            switch (enemyHealth) {
-                case 0:
-                    this.finishHim();
-                    break;
-                case -50:
-                    this.fatality();
-                    break;
-                default:
-                    enemy.setAnimationByName(0, 'fall', false); // E
-                    setTimeout(() => {
-                        enemy.onEvent.add((i, e) => {
-                            this.enemyShot(i, e);
-                        });
-                    }, 1000);
-                    break;
-            }
-        });
-    }
+      switch (enemyHealth) {
+        case 0:
+          this.finishHim();
+          break;
+        case -50:
+          this.fatality();
+          break;
+        default:
+          enemy.setAnimationByName(0, 'fall', false); // E
+          setTimeout(() => {
+            enemy.onEvent.add((i, e) => {
+              enemyTurn = true;
+              this.enemyShot(i, e);
+            });
+          }, 1000);
+          break;
+      }
+    });
 
     game.physics.arcade.collide(enemyWeapon, mainScene.ground, () => {
       enemyWeapon.body.immovable = true;
@@ -261,12 +266,13 @@ const mainScene = {
         enemyWeapon.kill();
         playerShooting = false;
         playerAiming = false;
+        playerTurn = true;
       }, 700);
     });
 
     game.physics.arcade.collide(enemyWeapon, mainScene.playerAsTarget, () => {
-      enemyWeapon.kill();
       playerHealth -= 30;
+      enemyWeapon.kill();
       mainScene.healthPlayer_InfoBar.width -= 330 / 100 * 30;
       mainScene.healthPlayer_InfoBar.updateCrop();
       player.setAnimationByName(0, 'default', false); // NOT E fall animation
@@ -274,6 +280,7 @@ const mainScene = {
       setTimeout(() => {
         playerShooting = false;
         playerAiming = false;
+        playerTurn = true;
       }, 700);
     });
 
@@ -302,17 +309,19 @@ const mainScene = {
     // Tutorial off
     mainScene.tutorialGroup.destroy();
 
-    // PLAYER___ WEAPON
-    playerWeapon = game.add.sprite(player.x - 190, player.y - 220, 'hammer');
-    playerWeapon.scale.setTo(config.spriteScale);
-    playerWeapon.anchor.setTo(config.anchorPoint);
-    playerWeapon.angle = -140;
-    playerWeapon.visible = false;
+    if (playerTurn){
+      // PLAYER___ WEAPON
+      playerWeapon = game.add.sprite(player.x - 190, player.y - 220, 'hammer');
+      playerWeapon.scale.setTo(config.spriteScale);
+      playerWeapon.anchor.setTo(config.anchorPoint);
+      playerWeapon.angle = -140;
+      playerWeapon.visible = false;
 
-    if (!this.playerShooting) {
-      playerAiming = true;
-      playerWeapon.visible = true;
-      player.setAnimationByName(0, 'grenade_draw', false);
+      if (!playerShooting) {
+        playerAiming = true;
+        playerWeapon.visible = true;
+        player.setAnimationByName(0, 'grenade_draw', false);
+      }
     }
   },
 
@@ -339,7 +348,7 @@ const mainScene = {
 
   // ---------------------------------------------- PLAYER SHOT ------------------------------------------------------
   playerShot() {
-    if (mainScene.aimLine.visible) {
+    if (mainScene.aimLine.visible && playerTurn) {
       const angleOfFire = Phaser.Math.degToRad(mainScene.aimLine.angle - 360);
       game.physics.enable(playerWeapon, Phaser.Physics.ARCADE);
       playerWeapon.body.velocity.set(0, 0);
@@ -349,35 +358,39 @@ const mainScene = {
       playerShooting = true;
       game.camera.follow(playerWeapon);
       player.setAnimationByName(0, 'grenade_shot', false);
+
+      playerAiming = false;
+      playerTurn = false;
+      readyToCollide = true;
+      mainScene.aimLine.visible = false;
+      mainScene.aimLineRight.visible = false;
     }
-    playerAiming = false;
-    mainScene.aimLine.visible = false;
-    mainScene.aimLineRight.visible = false;
   },
 
   // ----------------------------------------------- ENEMY SHOT ------------------------------------------------------
   enemyShot(trackIndex, event) {
-    if (event.data.name == 'Got_up') {
+    if (event.data.name == 'Got_up' && enemyTurn && enemyHealth > 0) {
       // ENEMY___ WEAPON
       enemyWeapon = game.add.sprite(enemy.x + 90, enemy.y - 300, 'spear');
       enemyWeapon.scale.setTo(config.spriteScale);
       enemyWeapon.anchor.setTo(config.anchorPoint);
       enemyWeapon.angle = -40;
-      enemyWeapon.visible = false;
-
-      enemy.setAnimationByName(1, 'grenade_shot', false);
       enemyWeapon.visible = true;
       game.physics.enable(enemyWeapon, Phaser.Physics.ARCADE);
       enemyWeapon.body.enable = true;
+
+      enemy.setAnimationByName(1, 'grenade_shot', false);
+
       game.enemyWeaponTween = game.add.tween(enemyWeapon).to({ angle: -140 }, 1300, 'Linear', true, false);
 
       if (playerHealth > 50) {
         enemyWeapon.body.velocity.set(-2500, 0.001);
-        game.camera.follow(enemyWeapon);
       } else {
         enemyWeapon.body.velocity.set(-1000, 10);
-        game.camera.follow(enemyWeapon);
       }
+
+      game.camera.follow(enemyWeapon);
+      enemyTurn = false;
     }
   },
 
@@ -391,6 +404,7 @@ const mainScene = {
       this.finishHimBox.destroy();
       game.camera.follow(player, Phaser.Camera.FOLLOW_LOCKON, 0.05, 0.05);
       playerShooting = false;
+      playerTurn = true;
       playerAiming = false;
     }, 1500);
   },
@@ -421,5 +435,8 @@ const mainScene = {
     mainScene.prizeGroup.visible = true;
     game.camera.follow(player, Phaser.Camera.FOLLOW_LOCKON, 0.05, 0.05);
     player.setAnimationByName(0, 'win', true);
+
+    playerTurn = false; //final screen shooting now impossible
+    enemyTurn = false;
   },
 };

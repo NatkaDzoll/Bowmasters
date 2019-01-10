@@ -25,6 +25,9 @@ let playerWeapon = 0;
 let enemyWeapon = 0;
 let playerAiming = false; // is not aiming
 let playerShooting = false; // is not shooting
+let playerTurn = true; // 'anti'-click R
+let enemyTurn = false;
+let readyToCollide = true; // problem with floor and enemy R
 
 const game = new Phaser.Game(config);
 
